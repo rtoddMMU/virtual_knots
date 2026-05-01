@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from ..core import ClassicalCrossing
 from .arc import Arc
 from .routing import create_arc_with_routing
+from .line_sweep import find_virtual_crossings
 
 __all__ = ["PreRectangularDiagram"]
 
@@ -115,6 +116,14 @@ class PreRectangularDiagram:
             'west': (center_x - 1, center_y)
         }
     
+    def find_virtual_crossings(self) -> List[Dict[str, Any]]:
+        """Find all virtual crossings in this diagram using line sweep.
+        
+        Returns:
+            List of virtual crossing information dictionaries
+        """
+        return find_virtual_crossings(self.arcs)
+
     def __str__(self) -> str:
         return (f"PreRectangularDiagram({self.num_crossings} crossings, "
                 f"{len(self.arcs)} arcs)")

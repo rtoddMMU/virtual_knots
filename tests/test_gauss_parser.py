@@ -4,7 +4,7 @@ from vkt.notation import parse_gauss_code
 from vkt.visualization import plot_pre_rectangular_diagram
 
 # Example: Trefoil knot
-gauss_code = "O1-O2-U1-U3-O4+O3-U4+U2-"
+gauss_code = "O1-U2+O3-U4+O5-U6+O2+U1-O4+U3-O6+U5-"
 
 # Parse and build diagram
 diagram = parse_gauss_code(gauss_code)
