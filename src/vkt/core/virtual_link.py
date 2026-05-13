@@ -1,3 +1,5 @@
+
+from .crossing import Crossing, StrandRef
 from typing import List, Iterable
 
 
@@ -30,10 +32,14 @@ class VirtualLink:
                     raise RuntimeError("next/prev inconsistency")
 
     # --- traversal ---
-    def strands(self) -> Iterable"""Yield all strand references in the link. Here we are build all the naturally occuring strand refs that will be needed"""
+    def strands(self) -> Iterable[StrandRef]:
+        """
+        Yield all strand references in the link.
+        """
         for c in self.crossings:
             yield StrandRef(c, 0)
             yield StrandRef(c, 1)
+
 
     def components(self) -> List[List[StrandRef]]:
         """
