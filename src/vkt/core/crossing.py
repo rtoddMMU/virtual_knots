@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Optional, List
 
-__all__ = ["Crossing", "StrandRef", "connect"]
+__all__ = ["Crossing", "StrandRef", "connect", "disconnect"]
+
 
 class StrandRef:
     __slots__ = ("crossing", "strand")
@@ -31,14 +32,18 @@ class StrandRef:
 
     def __repr__(self):
         return f"StrandRef(crossing={self.crossing.id}, strand={self.strand})"
+    
+    def __eq__(self, other):
+        if not isinstance(other, StrandRef):
+            return False
+        return self.crossing is other.crossing and self.strand == other.strand
 
 
 class Crossing:
-    __slots__ = ("kind", "sign", "next", "prev", "id")
+    __slots__ = ("kind", "sign", "next", "prev", "id" )
 
-    _id_counter = 0
 
-    def __init__(self, kind: str = "virtual", sign: Optional[int] = None):
+    def __init__(self, kind: str = "virtual", sign: Optional[int] = None, id = None):
 
         if kind not in ("classical", "virtual"):
             raise ValueError("kind must be 'classical' or 'virtual'")
@@ -55,11 +60,10 @@ class Crossing:
 
         # strand 0: south ↔ north
         # strand 1: west ↔ east
-        self.next: List[Optional[StrandRef]] = [None, None] # 0: crossing and strand North goes to. 1: crossing and stand East goes to
-        self.prev: List[Optional[StrandRef]] = [None, None] # 0 crossing and stand south comes from. 1: Crossing and strand West comes from.
+        self.next: List[Optional[StrandRef]] = [None, None]
+        self.prev: List[Optional[StrandRef]] = [None, None]
 
-        self.id = Crossing._id_counter
-        Crossing._id_counter += 1
+        self.id = id
 
     def is_classical(self) -> bool:
         return self.kind == "classical"
@@ -90,9 +94,7 @@ class Crossing:
         return f"Crossing(id={self.id}, kind={self.kind}, sign={self.sign})"
 
 
-
 def connect(a: StrandRef, b: StrandRef) -> None:
-    # Optional safety checks
     if a.crossing.next[a.strand] is not None:
         raise RuntimeError("next already set")
     if b.crossing.prev[b.strand] is not None:

@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="vkt",
-    version="0.1.0",
+    version="0.2.0",
     author="Robert Todd",
     description="Virtual Knot Theory: Computing gl(n|m) invariants",
     packages=find_packages(where="src"),
