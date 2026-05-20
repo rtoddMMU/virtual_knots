@@ -1,4 +1,4 @@
-from .crossing import Crossing, StrandRef
+from .crossing import Crossing, StrandRef, connect, disconnect
 from typing import List, Iterable
 
 
@@ -30,6 +30,61 @@ class VirtualLinkDiagram:
         
         if not self.planar():
             raise ValueError("Diagram is not planar.")
+
+    # --- editing ---
+    def admit_virtual_crossing(self, 
+                          strand_ref1: StrandRef, 
+                          strand_ref2: StrandRef,
+                          flag: int = 0) -> Crossing:
+        """
+        Insert a virtual crossing between two arcs. 
+        It's called 'admit' because we are not changing how the classical crossings connect.
+        
+        Given two strand references that define arcs:
+        - arc1: strand_ref1 -> strand_ref1.next()
+        - arc2: strand_ref2 -> strand_ref2.next()
+        
+        Creates a virtual crossing that connects these arcs.
+        
+        Args:
+            strand_ref1: First arc's starting position
+            strand_ref2: Second arc's starting position
+            flag: 0 means strand_ref1 -> virtual.strand[0], strand_ref2 -> virtual.strand[1]
+                1 means strand_ref1 -> virtual.strand[1], strand_ref2 -> virtual.strand[0]
+        
+        Returns:
+            The newly created virtual crossing
+        """
+        # Store the original next positions
+        old_next1 = strand_ref1.next()
+        old_next2 = strand_ref2.next()
+        
+        # Create the virtual crossing
+        virtual = Crossing(kind="virtual")
+        
+        # Insert into crossings list and assign ID
+        self.crossings.append(virtual)
+        virtual.id = len(self.crossings) - 1
+        
+        # Determine which strands to use based on flag
+        if flag == 0:
+            v_strand1 = 0
+            v_strand2 = 1
+        else:
+            v_strand1 = 1
+            v_strand2 = 0
+        
+        # Reconnect strand_ref1's arc through the virtual crossing
+        disconnect(strand_ref1)
+        connect(strand_ref1, virtual.ref(v_strand1))
+        connect(virtual.ref(v_strand1), old_next1)
+        
+        # Reconnect strand_ref2's arc through the virtual crossing
+        disconnect(strand_ref2)
+        connect(strand_ref2, virtual.ref(v_strand2))
+        connect(virtual.ref(v_strand2), old_next2)
+        
+        return virtual
 
     # --- traversal ---
     def strands(self) -> Iterable[StrandRef]:
@@ -98,7 +153,7 @@ class VirtualLinkDiagram:
                 
                 circles.append(circle)
         
-            return circles
+        return circles
     
     def disoriented_seifert_components(self) -> List[List[tuple]]:
         """
