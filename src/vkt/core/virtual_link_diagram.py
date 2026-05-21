@@ -1,5 +1,5 @@
 from .crossing import Crossing, StrandRef, connect, disconnect
-from typing import List, Iterable
+from typing import List, Iterable, Literal
 
 
 class VirtualLinkDiagram:
@@ -33,9 +33,11 @@ class VirtualLinkDiagram:
 
     # --- editing ---
     def admit_virtual_crossing(self, 
-                          strand_ref1: StrandRef, 
-                          strand_ref2: StrandRef,
-                          flag: int = 0) -> Crossing:
+                               strand_ref1: StrandRef, 
+                               strand_ref2: StrandRef,
+                               strand_ref1_connects_to: Literal[0, 1],  # 0 or 1
+                               strand_ref2_connects_to: Literal[0, 1]   # 0 or 1
+                               ) -> Crossing:
         """
         Insert a virtual crossing between two arcs. 
         It's called 'admit' because we are not changing how the classical crossings connect.
@@ -47,14 +49,23 @@ class VirtualLinkDiagram:
         Creates a virtual crossing that connects these arcs.
         
         Args:
-            strand_ref1: First arc's starting position
-            strand_ref2: Second arc's starting position
-            flag: 0 means strand_ref1 -> virtual.strand[0], strand_ref2 -> virtual.strand[1]
-                1 means strand_ref1 -> virtual.strand[1], strand_ref2 -> virtual.strand[0]
+        strand_ref1: First arc's starting position
+        strand_ref2: Second arc's starting position
+        strand_ref1_connects_to: Which strand (0 or 1) of the virtual crossing strand_ref1 connects to
+        strand_ref2_connects_to: Which strand (0 or 1) of the virtual crossing strand_ref2 connects to
         
         Returns:
             The newly created virtual crossing
+
+        Raises:
+        ValueError: If both strand_refs connect to the same virtual crossing strand
+        
         """
+        # check that the *_connects_to values are different
+        if strand_ref1_connects_to == strand_ref2_connects_to:
+            raise ValueError(f"strand_ref1_connects_to and strand_ref2_connects_to both connect to {strand_ref1_connects_to}. This is not allowed.")
+        
+
         # Store the original next positions
         old_next1 = strand_ref1.next()
         old_next2 = strand_ref2.next()
@@ -67,22 +78,22 @@ class VirtualLinkDiagram:
         virtual.id = len(self.crossings) - 1
         
         # Determine which strands to use based on flag
-        if flag == 0:
-            v_strand1 = 0
-            v_strand2 = 1
-        else:
-            v_strand1 = 1
-            v_strand2 = 0
+        #if flag == 0:
+         #   v_strand1 = 0
+          #  v_strand2 = 1
+        #else:
+         #   v_strand1 = 1
+          #  v_strand2 = 0
         
         # Reconnect strand_ref1's arc through the virtual crossing
         disconnect(strand_ref1)
-        connect(strand_ref1, virtual.ref(v_strand1))
-        connect(virtual.ref(v_strand1), old_next1)
+        connect(strand_ref1, virtual.ref(strand_ref1_connects_to))
+        connect(virtual.ref(strand_ref1_connects_to), old_next1)
         
         # Reconnect strand_ref2's arc through the virtual crossing
         disconnect(strand_ref2)
-        connect(strand_ref2, virtual.ref(v_strand2))
-        connect(virtual.ref(v_strand2), old_next2)
+        connect(strand_ref2, virtual.ref(strand_ref2_connects_to))
+        connect(virtual.ref(strand_ref2_connects_to), old_next2)
         
         return virtual
 
