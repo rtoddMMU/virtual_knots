@@ -1,5 +1,5 @@
-from .crossing import Crossing, StrandRef
-from typing import List, Iterable
+from .crossing import StrandRef
+from typing import List
 
 
 def route_arc_from_strandref(strand_ref: StrandRef) -> tuple[list[float], list[float]]:
@@ -18,6 +18,9 @@ def route_arc_from_strandref(strand_ref: StrandRef) -> tuple[list[float], list[f
     Returns:
         (x_coords, y_coords): Lists of coordinates for plotting
     """
+    
+
+
     start_crossing = strand_ref.crossing
     j = start_crossing.id
     
@@ -25,6 +28,16 @@ def route_arc_from_strandref(strand_ref: StrandRef) -> tuple[list[float], list[f
     end_ref = strand_ref.next()
     k = end_ref.crossing.id
     
+    end_crossing = end_ref.crossing
+
+    # Check that both crossings are classical
+    if not start_crossing.is_classical():
+        raise ValueError(f"Start crossing (id={start_crossing.id}) must be classical, got {start_crossing.kind}")
+    
+    if not end_crossing.is_classical():
+        raise ValueError(f"End crossing (id={end_crossing.id}) must be classical, got {end_crossing.kind}")
+
+
     # Determine arc type based on strand numbers
     start_strand = strand_ref.strand
     end_strand = end_ref.strand
@@ -63,6 +76,6 @@ def route_arc_from_strandref(strand_ref: StrandRef) -> tuple[list[float], list[f
         else:
             raise ValueError(f"Invalid backward arc: strand {start_strand} → strand {end_strand}")
     else:
-        raise ValueError(f"Cannot route arc from crossing {j} to itself")
+        raise ValueError(f"Cannot route arc from crossing {j} to itself") # This will need to be fixed. 
     
     return x, y

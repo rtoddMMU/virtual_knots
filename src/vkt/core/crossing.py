@@ -37,6 +37,9 @@ class StrandRef:
         if not isinstance(other, StrandRef):
             return False
         return self.crossing is other.crossing and self.strand == other.strand
+    
+    def __hash__(self):
+        return hash((id(self.crossing), self.strand))
 
 
 class Crossing:

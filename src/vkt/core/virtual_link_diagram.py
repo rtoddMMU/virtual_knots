@@ -1,6 +1,12 @@
 from .crossing import Crossing, StrandRef, connect, disconnect
 from typing import List, Iterable, Literal
+from .segment import Segment
+from .arc_routing_strandref import route_arc_from_strandref
+import matplotlib.pyplot as plt
 
+def _event_sort_key(e):
+        type_priority = {'vertical_start': 0, 'horizontal': 1, 'vertical_end': 2}
+        return (e['y'], type_priority[e['type']])
 
 class VirtualLinkDiagram:
     """
@@ -8,12 +14,139 @@ class VirtualLinkDiagram:
     Must be planar (all crossings properly connected in a planar diagram).
     """
 
-    def __init__(self, crossings: Iterable[Crossing]):
-        self.crossings: List[Crossing] = list(crossings)
+    def __init__(self, link: "VirtualLink"):
+        self.link = link
+        self.arc_routes: dict = {}
+        self.virtual_crossings: list = []
+ 
+
+    @property
+    def crossings(self) -> List[Crossing]:
+        return self.link.crossings
+    
+    def compute_arc_routes(self):
+        for crossing in self.crossings:
+            for i in range(2):
+                ref = crossing.ref(i)
+                result = route_arc_from_strandref(ref)
+                if result is None:
+                    continue
+                xs, ys = result
+                self.arc_routes[ref] = [
+                    Segment(
+                        start=(xs[j], ys[j]),
+                        end=(xs[j+1], ys[j+1]),
+                        strand_ref=ref
+                    )
+                    for j in range(len(xs) - 1)
+                ]
+    # --- plot a diagram ---
+    def plot(self, ax=None, show=True):
+        if ax is None:
+            fig, ax = plt.subplots()
+
+        all_vals = []
+
+        # Plot arcs from precomputed routes
+        for ref, segments in self.arc_routes.items():
+            for seg in segments:
+                xs = [seg.start[0], seg.end[0]]
+                ys = [seg.start[1], seg.end[1]]
+                all_vals.extend(xs)
+                all_vals.extend(ys)
+                ax.plot(xs, ys, color='steelblue')
+
+        # Plot crossings
+        for n, crossing in enumerate(self.crossings):
+            cx, cy = 4 * n, 4 * n
+            if crossing.sign == 1:  # positive: x-axis over, y-axis broken
+                ax.plot([cx - 1, cx + 1], [cy, cy], color='black')
+                ax.plot([cx, cx], [cy - 1, cy - 0.2], color='black')
+                ax.plot([cx, cx], [cy + 0.2, cy + 1], color='black')
+            elif crossing.sign == -1:  # negative: y-axis over, x-axis broken
+                ax.plot([cx, cx], [cy - 1, cy + 1], color='black')
+                ax.plot([cx - 1, cx - 0.2], [cy, cy], color='black')
+                ax.plot([cx + 0.2, cx + 1], [cy, cy], color='black')
+            # virtual crossings (sign=None) are skipped
+
+        if all_vals:
+            lim = [min(all_vals), max(all_vals)]
+            ax.plot(lim, [v + 1 for v in lim], color='red', linestyle='--', alpha=0.3)
+
+        ax.set_aspect('equal')
+        ax.axis('off')
+        plt.tight_layout()
+
+        if show:
+            plt.show()
+
+        return ax
+
+    
+
+    def find_virtual_crossings(self) -> list:
+        """
+        Find all virtual crossings using a line sweep algorithm.
+        Returns a list of (vertical_ref, horizontal_ref) tuples.
+        Collect all intersections first, then insert.
+        """
+        events = []
+
+        for ref, segments in self.arc_routes.items():
+            for seg in segments:
+                if seg.is_horizontal:
+                    x_min, x_max = seg.x_range()
+                    events.append({
+                        'type': 'horizontal',
+                        'y': seg.start[1],
+                        'x_min': x_min,
+                        'x_max': x_max,
+                        'ref': ref,
+                        'seg': seg
+                    })
+                else:  # vertical
+                    y_min, y_max = seg.y_range()
+                    events.append({
+                        'type': 'vertical_start',
+                        'y': y_min,
+                        'x': seg.start[0],
+                        'y_max': y_max,
+                        'ref': ref,
+                        'seg': seg
+                    })
+                    events.append({
+                        'type': 'vertical_end',
+                        'y': y_max,
+                        'x': seg.start[0],
+                        'ref': ref,
+                        'seg': seg
+                    })
+
         
-        # Assign IDs
-        for i, c in enumerate(self.crossings):
-            c.id = i
+
+        events.sort(key=_event_sort_key)
+
+        active_verticals = []
+        intersections = []
+
+        for event in events:
+            if event['type'] == 'vertical_start':
+                active_verticals.append(event)
+
+            elif event['type'] == 'vertical_end':
+                active_verticals = [
+                    v for v in active_verticals
+                    if v['seg'] is not event['seg']
+                ]
+
+            elif event['type'] == 'horizontal':
+                for v in active_verticals:
+                    if event['x_min'] <= v['x'] <= event['x_max']:
+                        if v['y'] <= event['y'] <= v['y_max']:
+                            if event['ref'] is not v['ref']:
+                                intersections.append((v['ref'], event['ref']))
+
+        return intersections
 
     # --- validation ---
     def validate(self) -> None:
@@ -30,6 +163,9 @@ class VirtualLinkDiagram:
         
         if not self.planar():
             raise ValueError("Diagram is not planar.")
+        
+    # --- Build arcs ---
+
 
     # --- editing ---
     def admit_virtual_crossing(self, 
@@ -96,6 +232,16 @@ class VirtualLinkDiagram:
         connect(virtual.ref(strand_ref2_connects_to), old_next2)
         
         return virtual
+    
+    # --- Add all the found virtual crossings ---
+    def compute_virtual_crossings(self):
+        while True:
+            intersections = self.find_virtual_crossings()
+            if not intersections:
+                break
+            v_ref, h_ref = intersections[0]
+            self.admit_virtual_crossing(v_ref, h_ref, 0, 1)
+
 
     # --- traversal ---
     def strands(self) -> Iterable[StrandRef]:
@@ -120,6 +266,8 @@ class VirtualLinkDiagram:
                 seen.add((current.crossing, current.strand))
                 comp.append(current)
                 current = current.next()
+                
+               
 
             comps.append(comp)
 

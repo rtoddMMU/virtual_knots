@@ -1,6 +1,7 @@
 
 from .crossing import Crossing, StrandRef
 from typing import List, Iterable
+from .virtual_link_diagram import VirtualLinkDiagram
 
 
 class VirtualLink:
@@ -179,6 +180,12 @@ class VirtualLink:
             return True
         else:
             return False
+    
+    # --- Make it a diagram -- 
+
+    def to_diagram(self) -> VirtualLinkDiagram:
+        
+        return VirtualLinkDiagram(self.crossings)
 
     # --- convenience ---
     def num_crossings(self) -> int:
