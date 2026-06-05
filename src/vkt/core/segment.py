@@ -1,5 +1,5 @@
 from typing import Tuple, Optional
-
+from .crossing import StrandRef
 __all__ = ["Segment"]
 
 

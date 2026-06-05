@@ -8,6 +8,29 @@ def _event_sort_key(e):
         type_priority = {'vertical_start': 0, 'horizontal': 1, 'vertical_end': 2}
         return (e['y'], type_priority[e['type']])
 
+def _split_segments_at(self, segments, x, y):
+        """
+        Split a list of segments at point (x, y).
+        Returns (head_list, tail_list).
+        The head ends at (x, y), the tail starts at (x, y).
+        strand_ref on tail segments is left as None — caller assigns later.
+        """
+        for i, seg in enumerate(segments):
+            if seg.is_horizontal:
+                x_min, x_max = seg.x_range()
+                if seg.start[1] == y and x_min < x < x_max:
+                    head = Segment(start=seg.start, end=(x, y), strand_ref=seg.strand_ref)
+                    tail = Segment(start=(x, y), end=seg.end, strand_ref=None)
+                    return segments[:i] + [head], [tail] + segments[i+1:]
+            else:
+                y_min, y_max = seg.y_range()
+                if seg.start[0] == x and y_min < y < y_max:
+                    head = Segment(start=seg.start, end=(x, y), strand_ref=seg.strand_ref)
+                    tail = Segment(start=(x, y), end=seg.end, strand_ref=None)
+                    return segments[:i] + [head], [tail] + segments[i+1:]
+        raise ValueError(f"Point ({x}, {y}) not found in segment list")
+
+
 class VirtualLinkDiagram:
     """
     Virtual link diagram - includes both classical and virtual crossings.
@@ -17,13 +40,24 @@ class VirtualLinkDiagram:
     def __init__(self, link: "VirtualLink"):
         self.link = link
         self.arc_routes: dict = {}
-        self.virtual_crossings: list = []
+        self.classical_arc_routes: dict = {}
+        self.virtual_crossing_coords: dict = {}
         self.compute_arc_routes()
+        self.compute_virtual_crossings()
+        #self.update_arc_routes()
  
 
     @property
     def crossings(self) -> List[Crossing]:
         return self.link.crossings
+
+    @property
+    def classical_crossings(self) -> List[Crossing]:
+        return [c for c in self.crossings if c.is_classical()]
+
+    @property
+    def virtual_crossings(self) -> List[Crossing]:
+        return [c for c in self.crossings if not c.is_classical()]
     
     def compute_arc_routes(self):
         for crossing in self.crossings:
@@ -86,7 +120,9 @@ class VirtualLinkDiagram:
                     return False
 
         return True
-
+    
+    # --- Split segments ---
+    
     # --- compute virutal crossings ---
     def compute_virtual_crossings(self):
         remaining = self.find_virtual_crossings()
@@ -95,7 +131,8 @@ class VirtualLinkDiagram:
             for item in remaining:
                 v_ref, h_ref, x, y = item
                 if self.is_max(v_ref, h_ref, x, y, remaining):
-                    self.admit_virtual_crossing(v_ref, h_ref, 0, 1)
+                    vc = self.admit_virtual_crossing(v_ref, h_ref, 0, 1)
+                    self.virtual_crossing_coords[vc] = (v_ref, h_ref, x, y)
                     remaining.remove(item)
                     break
             else:
@@ -103,6 +140,46 @@ class VirtualLinkDiagram:
                     f"No admissible virtual crossing found. "
                     f"{len(remaining)} intersections remain."
                 )
+
+    # --- Updated the acrs ---
+    def update_arc_routes(self):
+        import copy
+        self.classical_arc_routes = copy.copy(self.arc_routes)
+
+        # Build lookup: virtual crossing -> (x, y)
+        vc_coords = {vc: (x, y) for vc, (v_ref, h_ref, x, y)
+                    in self.virtual_crossing_coords.items()}
+
+        new_routes = {}
+
+        for classical_ref, segments in self.classical_arc_routes.items():
+            current_ref = classical_ref
+            remaining_segments = list(segments)
+
+            ref = classical_ref
+            while True:
+                next_ref = ref.next()
+                if next_ref.crossing.is_classical():
+                    # End of arc — store what's left
+                    new_routes[current_ref] = remaining_segments
+                    break
+                else:
+                    # Hit a virtual crossing
+                    vc = next_ref.crossing
+                    vx, vy = vc_coords[vc]
+                    head, tail = self._split_segments_at(remaining_segments, vx, vy)
+                    new_routes[current_ref] = head
+                    current_ref = next_ref
+                    remaining_segments = tail
+                    ref = next_ref
+
+        # Final pass: assign strand_ref from key
+        for ref, segments in new_routes.items():
+            for seg in segments:
+                seg.strand_ref = ref
+
+        self.arc_routes = new_routes
+
 
     # --- plot a diagram ---
     def plot(self, ax=None, show=True):
@@ -120,8 +197,8 @@ class VirtualLinkDiagram:
                 all_vals.extend(ys)
                 ax.plot(xs, ys, color='steelblue')
 
-        # Plot crossings
-        for n, crossing in enumerate(self.crossings):
+        # Plot classical crossings
+        for n, crossing in enumerate(self.classical_crossings):
             cx, cy = 4 * n, 4 * n
             if crossing.sign == 1:  # positive: x-axis over, y-axis broken
                 ax.plot([cx - 1, cx + 1], [cy, cy], color='black')
@@ -131,7 +208,11 @@ class VirtualLinkDiagram:
                 ax.plot([cx, cx], [cy - 1, cy + 1], color='black')
                 ax.plot([cx - 1, cx - 0.2], [cy, cy], color='black')
                 ax.plot([cx + 0.2, cx + 1], [cy, cy], color='black')
-            # virtual crossings (sign=None) are skipped
+
+        # Plot virtual crossings
+        for vc, (v_ref, h_ref, x, y) in self.virtual_crossing_coords.items():
+            circle = plt.Circle((x, y), radius=0.25, color='black', fill=False, linewidth=1)
+            ax.add_patch(circle)
 
         if all_vals:
             lim = [min(all_vals), max(all_vals)]
