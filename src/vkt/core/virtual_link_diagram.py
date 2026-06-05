@@ -18,6 +18,7 @@ class VirtualLinkDiagram:
         self.link = link
         self.arc_routes: dict = {}
         self.virtual_crossings: list = []
+        self.compute_arc_routes()
  
 
     @property
@@ -40,6 +41,69 @@ class VirtualLinkDiagram:
                     )
                     for j in range(len(xs) - 1)
                 ]
+   
+    def arc_position(self, ref, x, y):
+        segments = self.arc_routes[ref]
+        for i, seg in enumerate(segments):
+            if seg.is_horizontal:
+                if seg.start[1] == y:
+                    x_min = min(seg.start[0], seg.end[0])
+                    x_max = max(seg.start[0], seg.end[0])
+                    if x_min < x < x_max:
+                        length = abs(seg.end[0] - seg.start[0])
+                        t_seg = abs(x - seg.start[0]) / length
+                        return i + t_seg
+            else:  # vertical
+                if seg.start[0] == x:
+                    y_min = min(seg.start[1], seg.end[1])
+                    y_max = max(seg.start[1], seg.end[1])
+                    if y_min < y < y_max:
+                        length = abs(seg.end[1] - seg.start[1])
+                        t_seg = abs(y - seg.start[1]) / length
+                        return i + t_seg
+        return None
+
+    def is_max(self, ref1, ref2, x, y, remaining):
+        pos1 = self.arc_position(ref1, x, y)
+        pos2 = self.arc_position(ref2, x, y)
+
+        # Check ref1: any remaining intersection further forward?
+        for (r1, r2, xi, yi) in remaining:
+            if (xi, yi) == (x, y):
+                continue
+            if r1 == ref1 or r2 == ref1:
+                p = self.arc_position(ref1, xi, yi)
+                if p is not None and p > pos1:
+                    return False
+
+        # Check ref2: any remaining intersection further forward?
+        for (r1, r2, xi, yi) in remaining:
+            if (xi, yi) == (x, y):
+                continue
+            if r1 == ref2 or r2 == ref2:
+                p = self.arc_position(ref2, xi, yi)
+                if p is not None and p > pos2:
+                    return False
+
+        return True
+
+    # --- compute virutal crossings ---
+    def compute_virtual_crossings(self):
+        remaining = self.find_virtual_crossings()
+
+        while remaining:
+            for item in remaining:
+                v_ref, h_ref, x, y = item
+                if self.is_max(v_ref, h_ref, x, y, remaining):
+                    self.admit_virtual_crossing(v_ref, h_ref, 0, 1)
+                    remaining.remove(item)
+                    break
+            else:
+                raise RuntimeError(
+                    f"No admissible virtual crossing found. "
+                    f"{len(remaining)} intersections remain."
+                )
+
     # --- plot a diagram ---
     def plot(self, ax=None, show=True):
         if ax is None:
@@ -144,9 +208,15 @@ class VirtualLinkDiagram:
                     if event['x_min'] <= v['x'] <= event['x_max']:
                         if v['y'] <= event['y'] <= v['y_max']:
                             if event['ref'] is not v['ref']:
-                                intersections.append((v['ref'], event['ref']))
+                                intersections.append((v['ref'], 
+                                                      event['ref'],
+                                                      v['x'],       # x coordinate of intersection
+                                                      event['y']    # y coordinate of intersection
+                                                      ))
 
         return intersections
+    
+    # --- 
 
     # --- validation ---
     def validate(self) -> None:
@@ -233,14 +303,8 @@ class VirtualLinkDiagram:
         
         return virtual
     
-    # --- Add all the found virtual crossings ---
-    def compute_virtual_crossings(self):
-        while True:
-            intersections = self.find_virtual_crossings()
-            if not intersections:
-                break
-            v_ref, h_ref = intersections[0]
-            self.admit_virtual_crossing(v_ref, h_ref, 0, 1)
+  
+    
 
 
     # --- traversal ---
