@@ -5,7 +5,7 @@
 
 [ ] Need to fix the arc routing from a crossing to itself
 - exclude the case of a creating a small local component: strand 0 to iteslf or strand 1 to itself.
-- from strand 0 to strand 1: no problem. That's a small RI move. Sould it be removed? It the compoents are still all cc
+- from strand 0 to strand 1: no problem. That's a small RI move. Should it be removed? It the compoents are still all cc
 - from strand 1 to strand 0: this has nontrivial behavior. I'll to check the cases to see if we can still arrive at all circles being cc oriented. 
 
 ## Features

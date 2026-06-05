@@ -5,6 +5,9 @@ from typing import List
 def route_arc_from_strandref(strand_ref: StrandRef) -> tuple[list[float], list[float]]:
     """
     Route an outgoing arc from a StrandRef in a rectangular diagram.
+    We do not allow routing a crossing to itself.
+    The goal is to apply this to lists of gauss codes which are known to be 
+    reduced. 
     
     Classical crossings are positioned at (4n, 4n).
     
