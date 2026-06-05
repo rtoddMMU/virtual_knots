@@ -1,8 +1,14 @@
+from __future__ import annotations
 from .crossing import Crossing, StrandRef, connect, disconnect
 from typing import List, Iterable, Literal
 from .segment import Segment
 from .arc_routing_strandref import route_arc_from_strandref
 import matplotlib.pyplot as plt
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .virtual_link import VirtualLink
+
 
 def _event_sort_key(e):
         type_priority = {'vertical_start': 0, 'horizontal': 1, 'vertical_end': 2}
@@ -44,7 +50,7 @@ class VirtualLinkDiagram:
         self.virtual_crossing_coords: dict = {}
         self.compute_arc_routes()
         self.compute_virtual_crossings()
-        #self.update_arc_routes()
+
  
 
     @property
