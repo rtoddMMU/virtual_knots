@@ -9,32 +9,10 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .virtual_link import VirtualLink
 
-
 def _event_sort_key(e):
-        type_priority = {'vertical_start': 0, 'horizontal': 1, 'vertical_end': 2}
-        return (e['y'], type_priority[e['type']])
+    type_priority = {'vertical_start': 0, 'horizontal': 1, 'vertical_end': 2}
+    return (e['y'], type_priority[e['type']])
 
-def _split_segments_at(self, segments, x, y):
-        """
-        Split a list of segments at point (x, y).
-        Returns (head_list, tail_list).
-        The head ends at (x, y), the tail starts at (x, y).
-        strand_ref on tail segments is left as None — caller assigns later.
-        """
-        for i, seg in enumerate(segments):
-            if seg.is_horizontal:
-                x_min, x_max = seg.x_range()
-                if seg.start[1] == y and x_min < x < x_max:
-                    head = Segment(start=seg.start, end=(x, y), strand_ref=seg.strand_ref)
-                    tail = Segment(start=(x, y), end=seg.end, strand_ref=None)
-                    return segments[:i] + [head], [tail] + segments[i+1:]
-            else:
-                y_min, y_max = seg.y_range()
-                if seg.start[0] == x and y_min < y < y_max:
-                    head = Segment(start=seg.start, end=(x, y), strand_ref=seg.strand_ref)
-                    tail = Segment(start=(x, y), end=seg.end, strand_ref=None)
-                    return segments[:i] + [head], [tail] + segments[i+1:]
-        raise ValueError(f"Point ({x}, {y}) not found in segment list")
 
 
 class VirtualLinkDiagram:
@@ -50,6 +28,7 @@ class VirtualLinkDiagram:
         self.virtual_crossing_coords: dict = {}
         self.compute_arc_routes()
         self.compute_virtual_crossings()
+        self.update_arc_routes()
 
  
 
@@ -65,6 +44,30 @@ class VirtualLinkDiagram:
     def virtual_crossings(self) -> List[Crossing]:
         return [c for c in self.crossings if not c.is_classical()]
     
+    
+
+    def split_segments_at(self, segments, x, y):
+            """
+            Split a list of segments at point (x, y).
+            Returns (head_list, tail_list).
+            The head ends at (x, y), the tail starts at (x, y).
+            strand_ref on tail segments is left as None — caller assigns later.
+            """
+            for i, seg in enumerate(segments):
+                if seg.is_horizontal:
+                    x_min, x_max = seg.x_range()
+                    if seg.start[1] == y and x_min < x < x_max:
+                        head = Segment(start=seg.start, end=(x, y), strand_ref=seg.strand_ref)
+                        tail = Segment(start=(x, y), end=seg.end, strand_ref=None)
+                        return segments[:i] + [head], [tail] + segments[i+1:]
+                else:
+                    y_min, y_max = seg.y_range()
+                    if seg.start[0] == x and y_min < y < y_max:
+                        head = Segment(start=seg.start, end=(x, y), strand_ref=seg.strand_ref)
+                        tail = Segment(start=(x, y), end=seg.end, strand_ref=None)
+                        return segments[:i] + [head], [tail] + segments[i+1:]
+            raise ValueError(f"Point ({x}, {y}) not found in segment list")
+
     def compute_arc_routes(self):
         for crossing in self.crossings:
             for i in range(2):
@@ -173,7 +176,7 @@ class VirtualLinkDiagram:
                     # Hit a virtual crossing
                     vc = next_ref.crossing
                     vx, vy = vc_coords[vc]
-                    head, tail = self._split_segments_at(remaining_segments, vx, vy)
+                    head, tail = self.split_segments_at(remaining_segments, vx, vy)
                     new_routes[current_ref] = head
                     current_ref = next_ref
                     remaining_segments = tail
